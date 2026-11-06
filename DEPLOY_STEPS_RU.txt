@@ -1,0 +1,8 @@
+Публикация через GitHub Pages
+
+1. Repository -> Settings -> Pages.
+2. В Build and deployment выберите Source: GitHub Actions.
+3. Откройте вкладку Actions и дождитесь workflow Deploy website to GitHub Pages.
+4. Адрес сайта: https://teniraut132-bit.github.io/lord-of-the-woods/
+
+Данные пока хранятся локально в браузере. Для общей синхронизации необходима облачная база данных.
