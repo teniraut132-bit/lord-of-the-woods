@@ -36,7 +36,7 @@
     {id:'lastRoot',name:'Договор последнего корня',size:'Большой',cost:20,min:80,duration:'До исполнения обязательств',turns:null,desc:'Великий контракт для чрезвычайной ситуации. Требует священной рощи.',terms:['Принять масштабное обязательство по сохранению жизни.','Выполнить особое условие, установленное при заключении договора.'],reward:'Одно масштабное вмешательство Владыки по согласованному сценарию.',gain:5,requiresGrove:true}
   ];
 
-  const defaultDB = () => ({version:1,activeStateId:null,states:[],journal:[],createdAt:new Date().toISOString()});
+  const defaultDB = () => ({version:1,activeStateId:null,states:[],journal:[],armyRegistry:[],createdAt:new Date().toISOString()});
   let db = loadDB();
   let currentView = 'dashboard';
   let worshipFilter = 'Все';
@@ -44,7 +44,7 @@
   let preselectDruidId = null;
 
   function loadDB(){
-    try{const raw=localStorage.getItem(DB_KEY);if(!raw)return defaultDB();const parsed=JSON.parse(raw);if(!parsed||!Array.isArray(parsed.states))return defaultDB();parsed.journal ||= [];return parsed;}catch(e){return defaultDB();}
+    try{const raw=localStorage.getItem(DB_KEY);if(!raw)return defaultDB();const parsed=JSON.parse(raw);if(!parsed||!Array.isArray(parsed.states))return defaultDB();parsed.journal ||= [];parsed.armyRegistry ||= [];return parsed;}catch(e){return defaultDB();}
   }
   function saveDB(){
     try{localStorage.setItem(DB_KEY,JSON.stringify(db));$('#saveStatus').textContent='Сохранено локально · '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});}catch(e){$('#saveStatus').textContent='Не удалось сохранить: память браузера заполнена';toast('Не удалось сохранить данные браузера. Экспортируйте резервную копию.','error');}
@@ -62,7 +62,9 @@
   function stateTemples(s){return !!(s.temples?.chapel||s.temples?.root||s.temples?.abode);}
   function hasGrove(s){return (s.regions||[]).some(r=>r.grove);}
   function groveRegion(s){return (s.regions||[]).find(r=>r.grove)||null;}
-  function annualClericIncome(s){return Math.floor(number(s.priests)/100)+number(s.extraIncome);}
+  function importedStateRecord(s){const key=String(s?.name||'').trim().toLocaleLowerCase('ru');return (db.armyRegistry||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase('ru')===key)||null;}
+  function effectiveStateRace(s){return s?.race||importedStateRecord(s)?.race||'';}
+  function annualClericIncome(s){const base=Math.floor(number(s.priests)/100)+number(s.extraIncome);return effectiveStateRace(s)==='Королевские рыцари Жардана'?Math.floor(base*.5):base;}
   function currency(v){return `${fmt(v)} Клирики`;}
   function getRegion(s,id){return (s.regions||[]).find(r=>r.id===id)||null;}
   function regionOptions(s,onlyForest=false){return (s.regions||[]).filter(r=>!onlyForest||r.terrain==='Лес').map(r=>`<option value="${esc(r.id)}">${esc(r.name)} · ${esc(r.terrain)}${r.grove?' · Священная роща':''}</option>`).join('');}
@@ -179,10 +181,66 @@
       </div>
       <div class="grid two" style="margin-top:14px"><div class="card"><div class="card-title">Действующие благословения</div>${activeEffects.length?`<div class="list" style="margin-top:12px">${activeEffects.slice(0,4).map(e=>`<div class="list-row"><div class="list-row-main"><strong>${esc(e.title)}</strong><small>${esc(e.regionName||e.druidName||e.duration)}</small></div><button class="btn small ghost" data-action="finish-effect" data-id="${e.id}">Завершить</button></div>`).join('')}</div>`:'<div class="empty-inline">Нет активных благословений</div>'}</div><div class="card"><div class="card-title">Последние записи</div>${recent.length?`<div class="list" style="margin-top:12px">${recent.map(j=>`<div class="list-row"><div class="list-row-main"><strong>${esc(j.title)}</strong><small>${new Date(j.date).toLocaleDateString('ru-RU')} · ${esc(j.detail)}</small></div><span class="${j.favorDelta>0?'good':j.favorDelta<0?'bad':'muted'}">${j.favorDelta>0?'+':''}${j.favorDelta||''}</span></div>`).join('')}</div>`:'<div class="empty-inline">Записей пока нет</div>'}</div></div>`;
   }
+  const rosterAliases={
+    name:['государство','страна','государство страна','государство/страна','название государства','название страны','название','country','state','realm'],
+    religion:['религия','вера','вероисповедание','faith','religion'],
+    worshipsLord:['поклоняется владыке','поклонение владыке','вера во владыку','почитает владыку','владыка леса','хозяин леса','worships lord','lord worship'],
+    population:['население','численность населения','жители','population','inhabitants'],
+    feudals:['феодалы','число феодалов','количество феодалов','численность феодалов','колвофеодалов','nobles','feudals','feudal count'],
+    feudalLoyalty:['лояльность феодалов','верность феодалов','feudal loyalty'],
+    race:['раса','народ','race','species']
+  };
+  function normHeader(v){return String(v??'').toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[\s_\-–—/\\()№%:;,.]+/g,'').trim();}
+  function readNumericCell(v){if(v===null||v===undefined||v==='')return null;if(typeof v==='number')return Number.isFinite(v)?v:null;const cleaned=String(v).replace(/\s/g,'').replace(',','.').replace(/[^0-9.+-]/g,'');if(!cleaned)return null;const parsed=Number(cleaned);return Number.isFinite(parsed)?parsed:null;}
+  function readBooleanCell(v){if(typeof v==='boolean')return v;const t=String(v??'').trim().toLocaleLowerCase('ru');if(/^(нет|no|false|0|не\s)/i.test(t))return false;if(/^(да|yes|true|1)$/i.test(t)||/(владык|хозяин леса|мудрый дуб|поклоняется|почитает)/i.test(t))return true;return null;}
+  function rowValue(row,field){const keys=Object.keys(row||{}),aliases=(rosterAliases[field]||[]).map(normHeader);let key=keys.find(k=>aliases.includes(normHeader(k)));if(key===undefined)key=keys.find(k=>{const h=normHeader(k);return aliases.some(a=>a.length>=6&&h.includes(a));});return key===undefined?undefined:row[key];}
+  function normalizeRosterRace(value){const raw=String(value??'').trim();const key=raw.toLocaleLowerCase('ru').replace(/ё/g,'е');const aliases={'королевские рыцари жардана':'Королевские рыцари Жардана','аренские лисы':'Аренцы','аренцы':'Аренцы','вампиры эмоций':'Вампиры','тауру':'Тавуры','тавр':'Тавуры','таунгу':'Таунгуры','таунгуры':'Таунгуры','грандины':'Грандийцы','грандины (ангелы)':'Грандийцы','шаньди де суньмин':'Шаньди','та-рун':'Рун','друкхари':'Друкхари','скавены':'Скавены','нежить':'Нежить','люди':'Люди','эльфы':'Эльфы','дворфы':'Дворфы','орки':'Орки'};return aliases[key]||raw;}
+  function stableRosterId(name){return 'roster-'+String(name).toLocaleLowerCase('ru').normalize('NFKD').replace(/[^a-zа-я0-9]+/gi,'-').replace(/^-|-$/g,'').slice(0,64);}
+  function normalizeRosterRows(rows){
+    const existing=new Map((db.armyRegistry||[]).map(x=>[String(x.name).toLocaleLowerCase('ru'),x.id]));
+    const result=[];
+    for(const row of rows){
+      const name=String(rowValue(row,'name')??'').trim();if(!name)continue;
+      const religion=String(rowValue(row,'religion')??'').trim();
+      const explicitFaith=readBooleanCell(rowValue(row,'worshipsLord'));
+      const worshipsLord=explicitFaith===null?/(владык|хозяин леса|мудрый дуб|lord of the woods)/i.test(religion):explicitFaith;
+      const population=readNumericCell(rowValue(row,'population'));
+      const feudals=readNumericCell(rowValue(row,'feudals'));
+      const feudalLoyalty=readNumericCell(rowValue(row,'feudalLoyalty'));
+      const race=normalizeRosterRace(rowValue(row,'race'));
+      result.push({id:existing.get(name.toLocaleLowerCase('ru'))||stableRosterId(name),name,religion,worshipsLord,population,feudals,feudalLoyalty,race,source:'imported'});
+    }
+    return result;
+  }
+  function parseSimpleCsv(text){
+    const lines=String(text).replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim());if(!lines.length)return [];
+    const sample=lines.slice(0,20).join('\n');const counts={';':(sample.match(/;/g)||[]).length,',':(sample.match(/,/g)||[]).length,'\t':(sample.match(/\t/g)||[]).length};const delim=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
+    const parseLine=line=>{const out=[];let cur='',quoted=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'&&line[i+1]==='"'&&quoted){cur+='"';i++;}else if(c==='"')quoted=!quoted;else if(c===delim&&!quoted){out.push(cur);cur='';}else cur+=c;}out.push(cur);return out;};
+    const parsed=lines.map(parseLine);const nameHeaders=rosterAliases.name.map(normHeader);const headerIndex=parsed.findIndex(row=>row.some(cell=>nameHeaders.includes(normHeader(cell))));if(headerIndex<0)return [];const headers=parsed[headerIndex].map(x=>x.trim());return parsed.slice(headerIndex+1).map(cells=>Object.fromEntries(headers.map((h,i)=>[h,cells[i]??''])));
+  }
+  async function importArmyRegistryFile(file){
+    let rows=[];const lower=file.name.toLocaleLowerCase('ru');
+    if(lower.endsWith('.json')){const json=JSON.parse(await file.text());rows=Array.isArray(json)?json:(Array.isArray(json.states)?json.states:(Array.isArray(json.data)?json.data:[]));}
+    else if(lower.endsWith('.csv')){rows=parseSimpleCsv(await file.text());}
+    else {
+      if(!window.XLSX)throw new Error('Не загрузился модуль чтения Excel. Обновите страницу или сохраните лист как CSV и импортируйте его.');
+      const book=XLSX.read(await file.arrayBuffer(),{type:'array'});const nameHeaders=rosterAliases.name.map(normHeader);let found=false;for(const sheetName of book.SheetNames){const matrix=XLSX.utils.sheet_to_json(book.Sheets[sheetName],{header:1,defval:'',raw:true});const headerIndex=matrix.findIndex(row=>row.some(cell=>nameHeaders.includes(normHeader(cell))));if(headerIndex<0)continue;const headers=matrix[headerIndex].map(x=>String(x??'').trim());rows=matrix.slice(headerIndex+1).filter(row=>row.some(cell=>String(cell??'').trim()!=='')).map(row=>Object.fromEntries(headers.map((h,i)=>[h,row[i]??''])));found=true;break;}if(!found)throw new Error('Не найден лист с заголовком «Государство» или «Страна».');
+    }
+    if(!rows.length)throw new Error('В первом листе не найдены строки с данными.');
+    const normalized=normalizeRosterRows(rows);if(!normalized.length)throw new Error('Не удалось найти столбец с названием государства. Нужен заголовок «Государство» или «Страна».');
+    const missing=normalized.filter(x=>x.feudals===null).length;
+    if(!confirm(`Найдено государств: ${normalized.length}. Отмечено поклоняющихся Владыке: ${normalized.filter(x=>x.worshipsLord).length}. Строк без числа феодалов: ${missing}.\n\nЗаменить текущий импортированный реестр?`))return;
+    db.armyRegistry=normalized;saveDB();renderAll();toast(`Импортировано государств: ${normalized.length}. ${missing?`Для ${missing} не найдено число феодалов — их пул призыва нужно заполнить вручную.`:'Число феодалов распознано.'}`);
+  }
   function renderStates(){
-    const root=$('#view-states');root.innerHTML=`<div class="section-head"><div><div class="section-kicker">РЕЕСТР ДЕРЖАВ</div><h2>Государства под покровительством</h2><p>У каждого государства отдельные отношения с Владыкой, баланс Клирики, регионы и религиозные сооружения.</p></div><button class="btn" data-action="new-state">＋ Добавить государство</button></div>`;
-    if(!db.states.length){root.innerHTML+=`<div class="empty-state"><div class="empty-icon">♧</div><h3>Реестр пуст</h3><p>Добавьте государство и настройте его регионы, священные рощи и посвящённые сооружения.</p><button class="btn" data-action="new-state">Создать первое государство</button></div>`;return;}
-    root.innerHTML+=`<div class="grid two">${db.states.map(s=>`<article class="card state-card"><div class="state-head"><div><h3>${esc(s.name)}</h3><div class="state-meta"><span class="pill gold">${favorStatus(s.favor)} · ${fmt(s.favor)}/100</span><span class="pill">Клирика: ${fmt(s.clerics)}</span></div></div><button class="btn small ${db.activeStateId===s.id?'':'secondary'}" data-action="select-state" data-id="${s.id}">${db.activeStateId===s.id?'Выбрано':'Выбрать'}</button></div><div class="metric-list"><div class="metric-row"><span>Религия</span><strong>${esc(s.officialReligion)}</strong></div><div class="metric-row"><span>Клирика в год</span><strong>+${fmt(annualClericIncome(s))}</strong></div><div class="metric-row"><span>Регионы / рощи</span><strong>${s.regions.length} / ${s.regions.filter(r=>r.grove).length}</strong></div><div class="metric-row"><span>Друиды</span><strong>${s.druids.length} (${s.druids.filter(d=>d.dedicated).length} посвящ.)</strong></div></div><div class="region-chips" style="display:grid;gap:6px;margin:12px 0">${s.regions.length?s.regions.map(r=>`<div class="list-row"><div class="list-row-main"><strong>${esc(r.name)}</strong><small>${esc(r.terrain)}${r.grove?' · Священная роща':''} · Еда: ${fmt(regionEffectStats(s,r).food)} ед./год · Прирост: ${fmt(regionEffectStats(s,r).popGrowth)}% · Лояльность крестьян: ${fmt(regionEffectStats(s,r).loyalty)}%${regionEffectStats(s,r).crises.length?' · Кризисы: '+regionEffectStats(s,r).crises.join(', '):' · Кризисов нет'}</small></div><div class="list-actions"><button class="btn small ghost" data-action="edit-region" data-id="${r.id}" data-state="${s.id}">Изменить</button><button class="btn small danger" data-action="delete-region" data-id="${r.id}" data-state="${s.id}">×</button></div></div>`).join(''):'<span class="small-note">Регионы не добавлены</span>'}</div><div class="card-actions"><button class="btn small secondary" data-action="edit-state" data-id="${s.id}">Редактировать</button><button class="btn small secondary" data-action="add-region" data-id="${s.id}">＋ Регион</button><button class="btn small ghost" data-action="temples" data-id="${s.id}">Сооружения</button><button class="btn small ghost" data-action="delete-state" data-id="${s.id}">Удалить</button></div></article>`).join('')}</div>`;
+    const root=$('#view-states');const worshipRoster=(db.armyRegistry||[]).filter(s=>s.worshipsLord);const rosterCount=(db.armyRegistry||[]).length;
+    const rosterPanel=`<section class="card ma-roster-card"><div class="section-head"><div><div class="section-kicker">ВНЕШНИЙ РЕЕСТР ГОСУДАРСТВ</div><h2>Державы, почитающие Владыку</h2><p>Сюда выводятся только строки из Excel, где указано поклонение Владыке. Полный реестр — включая государства других вер — доступен в военном советнике для выбора армии и расчёта призыва.</p></div><div class="ma-roster-actions"><button class="btn small secondary" data-action="import-army-roster">⇧ Импорт Excel</button><input id="armyRosterFile" type="file" accept=".xlsx,.xls,.csv,.json" hidden></div></div>
+      <div class="ma-roster-meta">Загружено государств: <strong>${rosterCount}</strong> · Почитают Владыку: <strong>${worshipRoster.length}</strong></div>
+      ${worshipRoster.length?`<div class="table-wrap"><table class="data-table ma-roster-table"><thead><tr><th>Государство</th><th>Вероисповедание</th><th>Раса</th><th>Население</th><th>Феодалы</th></tr></thead><tbody>${worshipRoster.map(x=>`<tr><td><strong>${esc(x.name)}</strong></td><td>${esc(x.religion||'Не указано')}</td><td>${esc(x.race||'—')}</td><td>${x.population==null?'—':fmt(x.population)}</td><td>${x.feudals==null?'<span class="bad">Не указано</span>':fmt(x.feudals)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-inline">Пока нет импортированных государств, отмеченных как почитающие Владыку. Загрузите Excel-книгу — подойдут заголовки «Государство», «Религия», «Население», «Феодалы» и «Поклоняется Владыке».</div>'}
+      <div class="small-note">Если в таблице нет отдельного столбца «Поклоняется Владыке», система попробует определить это по названию религии. Для расчёта призыва важен именно столбец с числом феодалов: 10 феодалов дают 5 специалистов и 20 сброда в год.</div></section>`;
+    root.innerHTML=`<div class="section-head"><div><div class="section-kicker">РЕЕСТР ДЕРЖАВ</div><h2>Государства под покровительством</h2><p>У каждого государства отдельные отношения с Владыкой, баланс Клирики, регионы и религиозные сооружения.</p></div><button class="btn" data-action="new-state">＋ Добавить государство</button></div>${rosterPanel}`;
+    if(!db.states.length){root.innerHTML+=`<div class="empty-state"><div class="empty-icon">♧</div><h3>Личный реестр покровительства пуст</h3><p>Добавьте государство, если хотите вести для него благосклонность, регионы и посвящённые сооружения. Импортированная Excel-таблица выше не требует, чтобы государство поклонялось Владыке.</p><button class="btn" data-action="new-state">Создать первое государство</button></div>`;return;}
+    root.innerHTML+=`<div class="grid two">${db.states.map(s=>`<article class="card state-card"><div class="state-head"><div><h3>${esc(s.name)}</h3><div class="state-meta"><span class="pill gold">${favorStatus(s.favor)} · ${fmt(s.favor)}/100</span><span class="pill">Клирика: ${fmt(s.clerics)}</span></div></div><button class="btn small ${db.activeStateId===s.id?'':'secondary'}" data-action="select-state" data-id="${s.id}">${db.activeStateId===s.id?'Выбрано':'Выбрать'}</button></div><div class="metric-list"><div class="metric-row"><span>Религия</span><strong>${esc(s.officialReligion)}</strong></div>${effectiveStateRace(s)?`<div class="metric-row"><span>Раса</span><strong>${esc(effectiveStateRace(s))}</strong></div>`:''}<div class="metric-row"><span>Клирика в год</span><strong>+${fmt(annualClericIncome(s))}</strong></div><div class="metric-row"><span>Регионы / рощи</span><strong>${s.regions.length} / ${s.regions.filter(r=>r.grove).length}</strong></div><div class="metric-row"><span>Друиды</span><strong>${s.druids.length} (${s.druids.filter(d=>d.dedicated).length} посвящ.)</strong></div></div><div class="region-chips" style="display:grid;gap:6px;margin:12px 0">${s.regions.length?s.regions.map(r=>`<div class="list-row"><div class="list-row-main"><strong>${esc(r.name)}</strong><small>${esc(r.terrain)}${r.grove?' · Священная роща':''} · Еда: ${fmt(regionEffectStats(s,r).food)} ед./год · Прирост: ${fmt(regionEffectStats(s,r).popGrowth)}% · Лояльность крестьян: ${fmt(regionEffectStats(s,r).loyalty)}%${regionEffectStats(s,r).crises.length?' · Кризисы: '+regionEffectStats(s,r).crises.join(', '):' · Кризисов нет'}</small></div><div class="list-actions"><button class="btn small ghost" data-action="edit-region" data-id="${r.id}" data-state="${s.id}">Изменить</button><button class="btn small danger" data-action="delete-region" data-id="${r.id}" data-state="${s.id}">×</button></div></div>`).join(''):'<span class="small-note">Регионы не добавлены</span>'}</div><div class="card-actions"><button class="btn small secondary" data-action="edit-state" data-id="${s.id}">Редактировать</button><button class="btn small secondary" data-action="add-region" data-id="${s.id}">＋ Регион</button><button class="btn small ghost" data-action="temples" data-id="${s.id}">Сооружения</button><button class="btn small ghost" data-action="delete-state" data-id="${s.id}">Удалить</button></div></article>`).join('')}</div>`;
   }
   function renderWorship(){
     const root=$('#view-worship'),s=activeState();const groups=['Все','Гражданские','Военные','Дары друидам'];
@@ -333,7 +391,7 @@
   function renderAll(){renderHeader();renderDashboard();renderMap();renderStates();renderWorship();renderContracts();renderDruids();renderWar();renderJournal();renderRules();if(window.MilitaryAdvisor)window.MilitaryAdvisor.render();$$('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${currentView}`));$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===currentView));}
   function navigate(view){if(!$('#view-'+view))return;currentView=view;renderAll();$('#sidebar').classList.remove('open');window.scrollTo({top:0,behavior:'smooth'});}
   function exportBackup(){const blob=new Blob([JSON.stringify({...db,militaryAdvisor:window.MilitaryAdvisor?.exportData?.()||null,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Хозяин_леса_резервная_копия_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);toast('Резервная копия подготовлена.');}
-  function importBackup(file){const reader=new FileReader();reader.onload=()=>{try{const incoming=JSON.parse(reader.result);if(!incoming||!Array.isArray(incoming.states)||!Array.isArray(incoming.journal))throw new Error('Формат файла не распознан.');if(!confirm(`Импортировать ${incoming.states.length} государств? Текущие данные будут заменены.`))return;incoming.states.forEach(s=>{s.temples ||= {chapel:false,root:false,abode:false};s.rootTempleRegionId ||= null;s.regions ||= [];s.regions.forEach(r=>{r.crises ||= {famine:false,plague:false,devastation:false,wildBeasts:false};r.foodProduction ??= 0;r.populationGrowth ??= 1;r.peasantLoyalty ??= 55;});s.contracts ||= [];s.druids ||= [];s.effects ||= [];s.druids.forEach(d=>{d.gifts ||= [];d.giftNames ||= [];});});db={version:1,activeStateId:incoming.activeStateId||incoming.states[0]?.id||null,states:incoming.states,journal:incoming.journal,createdAt:incoming.createdAt||new Date().toISOString()};if(incoming.militaryAdvisor&&window.MilitaryAdvisor)window.MilitaryAdvisor.importData(incoming.militaryAdvisor);saveDB();renderAll();toast('Резервная копия успешно загружена.');}catch(e){toast('Не удалось прочитать резервную копию: '+e.message,'error');}};reader.readAsText(file);}
+  function importBackup(file){const reader=new FileReader();reader.onload=()=>{try{const incoming=JSON.parse(reader.result);if(!incoming||!Array.isArray(incoming.states)||!Array.isArray(incoming.journal))throw new Error('Формат файла не распознан.');if(!confirm(`Импортировать ${incoming.states.length} государств? Текущие данные будут заменены.`))return;incoming.states.forEach(s=>{s.temples ||= {chapel:false,root:false,abode:false};s.rootTempleRegionId ||= null;s.regions ||= [];s.regions.forEach(r=>{r.crises ||= {famine:false,plague:false,devastation:false,wildBeasts:false};r.foodProduction ??= 0;r.populationGrowth ??= 1;r.peasantLoyalty ??= 55;});s.contracts ||= [];s.druids ||= [];s.effects ||= [];s.druids.forEach(d=>{d.gifts ||= [];d.giftNames ||= [];});});db={version:1,activeStateId:incoming.activeStateId||incoming.states[0]?.id||null,states:incoming.states,journal:incoming.journal,armyRegistry:Array.isArray(incoming.armyRegistry)?incoming.armyRegistry:[],createdAt:incoming.createdAt||new Date().toISOString()};if(incoming.militaryAdvisor&&window.MilitaryAdvisor)window.MilitaryAdvisor.importData(incoming.militaryAdvisor);saveDB();renderAll();toast('Резервная копия успешно загружена.');}catch(e){toast('Не удалось прочитать резервную копию: '+e.message,'error');}};reader.readAsText(file);}
 
   document.addEventListener('click',e=>{
     const nav=e.target.closest('[data-view],[data-nav]');if(nav){navigate(nav.dataset.view||nav.dataset.nav);return;}
@@ -342,6 +400,7 @@
     const a=e.target.closest('[data-action]');if(!a)return;const action=a.dataset.action,id=a.dataset.id,s=activeState();
     switch(action){
       case 'new-state':showModalStateForm();break;
+      case 'import-army-roster':$('#armyRosterFile')?.click();break;
       case 'edit-state':{const st=id?db.states.find(x=>x.id===id):s;if(st)showModalStateForm(st);break;}
       case 'select-state':setActiveState(id);toast('Выбрано государство.');break;
       case 'add-region':{const st=db.states.find(x=>x.id===id)||s;if(st)showRegionForm(st);break;}
@@ -368,11 +427,14 @@
   $('#globalStateSelect').addEventListener('change',e=>setActiveState(e.target.value));
   $('#modalClose').onclick=closeModal;$('#modalBackdrop').addEventListener('click',e=>{if(e.target===$('#modalBackdrop'))closeModal();});
   $('#exportBtn').onclick=exportBackup;$('#importBtn').onclick=()=>$('#importFile').click();$('#importFile').onchange=e=>{if(e.target.files[0])importBackup(e.target.files[0]);e.target.value='';};
+  document.addEventListener('change',async e=>{if(e.target.id==='armyRosterFile'&&e.target.files?.[0]){const file=e.target.files[0];try{await importArmyRegistryFile(file);}catch(err){toast('Ошибка импорта таблицы: '+err.message,'error');}finally{e.target.value='';}}});
   $('#mobileMenu').onclick=()=>$('#sidebar').classList.toggle('open');
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
   if(typeof navigator!=='undefined'&&'serviceWorker' in navigator&&typeof location!=='undefined'&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 
+  // Bridge shared state registry to the standalone military advisor. It includes all countries, not only Lord worshippers.
+  window.LordOfTheWoodsBridge={getStateRoster:()=>Array.isArray(db.armyRegistry)?db.armyRegistry:[]};
   // Initial render; the application starts with an empty register rather than fabricated example data.
   if(window.MilitaryAdvisor)window.MilitaryAdvisor.init();
   renderAll();

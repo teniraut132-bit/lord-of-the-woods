@@ -1,7 +1,7 @@
-const CACHE_NAME = 'lord-of-the-woods-v2';
+const CACHE_NAME = 'lord-of-the-woods-v3';
 const ASSETS = [
   './', './index.html', './styles.css', './extensions.css', './app.js', './military-advisor.js', './manifest.webmanifest',
-  './assets/lord-portrait.webp', './assets/forest-banner.webp',
+  './assets/lord-portrait.webp', './assets/forest-banner.webp', './assets/jardan-royal-knights.webp',
   './assets/icon-192.png', './assets/icon-512.png'
 ];
 self.addEventListener('install', event => {

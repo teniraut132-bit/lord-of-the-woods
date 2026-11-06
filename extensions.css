@@ -79,3 +79,30 @@
 .ma-results-table tr.loss-small td{background:#453b22;color:#e8dcae}
 .ma-results-table tr.unit-win:not(.loss-heavy):not(.loss-small) td{background:#1f3b26}
 .ma-results-table tr.unit-lose:not(.loss-heavy):not(.loss-small) td{background:#3a2a22}
+
+/* Military adviser 2.7 — state roster and racial profile */
+.ma-field-wide{grid-column:1/-1}
+.ma-linked-state{display:grid;gap:4px;margin:10px 0;padding:10px 12px;border:1px solid #536b49;background:#17251a;border-radius:8px}
+.ma-linked-state strong{color:#e6d9ae;font-size:11px}
+.ma-linked-state span{color:#9da995;font-size:9px;line-height:1.5}
+.ma-army-flags{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:9px 0}
+.ma-army-flags label{display:flex;align-items:center;gap:7px;padding:8px 9px;border:1px solid #ffffff12;border-radius:7px;background:#111d15;color:#a9b49f;font-size:9px;line-height:1.4}
+.ma-army-flags input{accent-color:#b89a50;margin:0}
+.ma-army-flags input:disabled{opacity:.35}
+.ma-race-profile{display:grid;grid-template-columns:minmax(150px,240px) minmax(0,1fr);gap:13px;margin:12px 0;padding:11px;border:1px solid #79663b;background:#211f17;border-radius:9px;align-items:start}
+.ma-race-profile img{width:100%;height:auto;display:block;border-radius:7px;border:1px solid #6f603b}
+.ma-race-profile strong{display:block;color:#e8d79f;font-family:'Cormorant Garamond',serif;font-size:19px;margin-bottom:5px}
+.ma-race-profile p{margin:5px 0;color:#b3b9a8;font-size:9px;line-height:1.55}
+.ma-roster-card{margin:14px 0 18px;border-top:2px solid #a58b4a}
+.ma-roster-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.ma-roster-meta{font-size:10px;color:#8f9c88;margin:0 0 10px}
+.ma-roster-meta strong{color:#e5d4a0}
+.ma-roster-table{min-width:760px}
+.ma-recruitment-result{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0}
+.ma-recruitment-result>div{display:grid;gap:4px;padding:12px;background:#142018;border:1px solid #ffffff12;border-radius:8px}
+.ma-recruitment-result span{font-size:9px;color:#879681}
+.ma-recruitment-result strong{font-family:'Cormorant Garamond',serif;font-size:25px;color:#e8d8a9}
+.ma-effect-note{margin-top:10px}
+.ma-effect-note ul{padding-left:18px;margin:6px 0 0}
+.ma-effect-note li{margin:3px 0}
+@media(max-width:760px){.ma-race-profile{grid-template-columns:1fr}.ma-race-profile img{max-width:100%}.ma-army-flags{grid-template-columns:1fr}.ma-roster-actions{align-self:flex-start}}
