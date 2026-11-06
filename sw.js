@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lord-of-the-woods-v3';
+const CACHE_NAME = 'lord-of-the-woods-v5';
 const ASSETS = [
   './', './index.html', './styles.css', './extensions.css', './app.js', './military-advisor.js', './manifest.webmanifest',
   './assets/lord-portrait.webp', './assets/forest-banner.webp', './assets/jardan-royal-knights.webp',
