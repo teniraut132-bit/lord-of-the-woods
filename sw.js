@@ -1,8 +1,32 @@
-const CACHE_NAME = 'lord-of-the-woods-v5';
+const CACHE_NAME = 'lord-of-the-woods-v6-race-codex';
 const ASSETS = [
   './', './index.html', './styles.css', './extensions.css', './app.js', './military-advisor.js', './manifest.webmanifest',
   './assets/lord-portrait.webp', './assets/forest-banner.webp', './assets/jardan-royal-knights.webp',
-  './assets/icon-192.png', './assets/icon-512.png'
+  './assets/icon-192.png', './assets/icon-512.png',
+  './assets/races/arenians.webp',
+  './assets/races/barzum.webp',
+  './assets/races/brugachi.webp',
+  './assets/races/drukhari.webp',
+  './assets/races/dwarves.webp',
+  './assets/races/elves.webp',
+  './assets/races/gobs.webp',
+  './assets/races/grandians.webp',
+  './assets/races/halflings.webp',
+  './assets/races/humans.webp',
+  './assets/races/inverses.webp',
+  './assets/races/jardan.webp',
+  './assets/races/mazury.webp',
+  './assets/races/nekomata.webp',
+  './assets/races/orcs.webp',
+  './assets/races/run.webp',
+  './assets/races/satyrs.webp',
+  './assets/races/shandi.webp',
+  './assets/races/skaven.webp',
+  './assets/races/taungurs.webp',
+  './assets/races/tavurs.webp',
+  './assets/races/undead.webp',
+  './assets/races/valessians.webp',
+  './assets/races/vampires.webp'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
