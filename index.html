@@ -1,66 +1,99 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#101812">
-<meta name="description" content="Система управления божественным покровительством Хозяина леса.">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" href="assets/icon-192.png">
-<title>Хозяин леса — управление покровительством</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="extensions.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101812">
+  <meta name="description" content="Система управления божественным покровительством Хозяина леса.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="assets/icon-192.png">
+  <title>Хозяин леса — управление покровительством</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="extensions.css">
 </head>
 <body>
-<div class="app-shell">
-<aside class="sidebar" id="sidebar">
-<div class="brand"><div class="brand-mark"><img src="assets/lord-portrait.webp" alt="Хозяин леса"></div><div><div class="brand-title">Хозяин леса</div><div class="brand-subtitle">Книга корней и пепла</div></div></div>
-<div class="side-caption">УПРАВЛЕНИЕ</div>
-<nav class="nav-list" aria-label="Основная навигация">
-<button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span><span>Обзор</span></button>
-<button class="nav-item" data-view="map"><span class="nav-icon">⌖</span><span>Карта мира</span></button>
-<button class="nav-item" data-view="advisor"><span class="nav-icon">⚔</span><span>Военный советник</span></button>
-<button class="nav-item" data-view="states"><span class="nav-icon">♜</span><span>Государства</span></button>
-<button class="nav-item" data-view="worship"><span class="nav-icon">✧</span><span>Молитвы и дары</span></button>
-<button class="nav-item" data-view="contracts"><span class="nav-icon">⚖</span><span>Контракты</span></button>
-<button class="nav-item" data-view="druids"><span class="nav-icon">❧</span><span>Друиды</span></button>
-<button class="nav-item" data-view="war"><span class="nav-icon">⚔</span><span>Военное покровительство</span></button>
-<button class="nav-item" data-view="journal"><span class="nav-icon">☷</span><span>Журнал действий</span></button>
-</nav>
-<div class="side-caption side-caption-spaced">СПРАВОЧНИК</div>
-<nav class="nav-list"><button class="nav-item" data-view="rules"><span class="nav-icon">❖</span><span>Правила и догматы</span></button></nav>
-<div class="sidebar-bottom"><div class="sidebar-quote">«Верь не словам, но делам. И помни, что жизнь продолжается».</div><div class="sidebar-status"><span class="status-dot"></span><span>Локальная база активна</span></div></div>
-</aside>
-<main class="main-area">
-<header class="topbar">
-<button class="mobile-menu" id="mobileMenu" aria-label="Открыть меню">☰</button>
-<div class="breadcrumbs"><span>Летопись</span><b>/</b><strong id="crumbTitle">Обзор</strong></div>
-<div class="top-actions">
-<label class="state-select-wrap"><span>Государство</span><select id="globalStateSelect"><option value="">Не выбрано</option></select></label>
-<button class="btn small top-quick-blessing" data-action="quick-blessing" title="Быстро запросить благословение">✦ Благословить</button>
-<button class="btn small ghost top-repeat-blessing" id="repeatBlessingBtn" data-action="repeat-blessing" title="Повторить последнее благословение" hidden>↻ Повторить</button>
-<button class="icon-btn" id="exportBtn" title="Экспорт резервной копии">⇩</button>
-<button class="icon-btn" id="importBtn" title="Импорт резервной копии">⇧</button>
-<input type="file" id="importFile" accept="application/json,.json" hidden>
-</div></header>
-<div class="content-wrap">
-<section class="hero-banner"><div class="hero-image"></div><div class="hero-overlay"></div><div class="hero-content"><div class="eyebrow"><span class="eyebrow-line"></span> ПОКРОВИТЕЛЬ ЖИЗНИ И ДИКОЙ ПРИРОДЫ</div><h1 id="pageTitle">Хозяин леса</h1><p id="pageDescription">«Я был до вас. Я был при вас. Я буду после вас».</p></div><div class="hero-seal">♧</div></section>
-<div id="view-dashboard" class="view active"></div>
-<div id="view-map" class="view"></div>
-<div id="view-advisor" class="view"></div>
-<div id="view-states" class="view"></div>
-<div id="view-worship" class="view"></div>
-<div id="view-contracts" class="view"></div>
-<div id="view-druids" class="view"></div>
-<div id="view-war" class="view"></div>
-<div id="view-journal" class="view"></div>
-<div id="view-rules" class="view"></div>
-<footer class="app-footer"><span>ХОЗЯИН ЛЕСА · РЕГЛАМЕНТ ПОКРОВИТЕЛЬСТВА</span><span id="saveStatus">Изменения сохраняются в этом браузере</span></footer>
-</div></main></div>
-<div class="modal-backdrop" id="modalBackdrop" hidden><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><header class="modal-header"><div><div class="eyebrow">ЛЕТОПИСЬ ВЛАДЫКИ</div><h2 id="modalTitle">Действие</h2></div><button class="close-btn" id="modalClose" aria-label="Закрыть">×</button></header><div id="modalBody" class="modal-body"></div><footer id="modalFooter" class="modal-footer"></footer></section></div>
-<div class="toast-region" id="toastRegion" aria-live="polite"></div>
-<script src="military-advisor.js"></script><script src="app.js"></script>
-</body></html>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><img src="assets/lord-portrait.webp" alt="Хозяин леса"></div>
+        <div><div class="brand-title">Хозяин леса</div><div class="brand-subtitle">Книга корней и пепла</div></div>
+      </div>
+      <div class="side-caption">УПРАВЛЕНИЕ</div>
+      <nav class="nav-list" aria-label="Основная навигация">
+        <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span><span>Обзор</span></button>
+        <button class="nav-item" data-view="map"><span class="nav-icon">⌖</span><span>Карта мира</span></button>
+        <button class="nav-item" data-view="advisor"><span class="nav-icon">⚔</span><span>Военный советник</span></button>
+        <button class="nav-item" data-view="states"><span class="nav-icon">♜</span><span>Государства</span></button>
+        <button class="nav-item" data-view="worship"><span class="nav-icon">✧</span><span>Молитвы и дары</span></button>
+        <button class="nav-item" data-view="contracts"><span class="nav-icon">⚖</span><span>Контракты</span></button>
+        <button class="nav-item" data-view="druids"><span class="nav-icon">❧</span><span>Друиды</span></button>
+        <button class="nav-item" data-view="war"><span class="nav-icon">⚔</span><span>Военное покровительство</span></button>
+        <button class="nav-item" data-view="journal"><span class="nav-icon">☷</span><span>Журнал действий</span></button>
+      </nav>
+      <div class="side-caption side-caption-spaced">СПРАВОЧНИК</div>
+      <nav class="nav-list">
+        <button class="nav-item" data-view="rules"><span class="nav-icon">❖</span><span>Правила и догматы</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-quote">«Верь не словам, но делам. И помни, что жизнь продолжается».</div>
+        <div class="sidebar-status"><span class="status-dot"></span><span>Локальная база активна</span></div>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Открыть меню">☰</button>
+        <div class="breadcrumbs"><span>Летопись</span><b>/</b><strong id="crumbTitle">Обзор</strong></div>
+        <div class="top-actions">
+          <label class="state-select-wrap"><span>Государство</span><select id="globalStateSelect"><option value="">Не выбрано</option></select></label>
+          <button class="btn small top-quick-blessing" data-action="quick-blessing" title="Быстро запросить благословение">✦ Благословить</button>
+          <button class="btn small ghost top-repeat-blessing" id="repeatBlessingBtn" data-action="repeat-blessing" title="Повторить последнее благословение" hidden>↻ Повторить</button>
+          <button class="icon-btn" id="exportBtn" title="Экспорт резервной копии">⇩</button>
+          <button class="icon-btn" id="importBtn" title="Импорт резервной копии">⇧</button>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+        </div>
+      </header>
+
+      <div class="content-wrap">
+        <section class="hero-banner">
+          <div class="hero-image"></div>
+          <div class="hero-overlay"></div>
+          <div class="hero-content">
+            <div class="eyebrow"><span class="eyebrow-line"></span> ПОКРОВИТЕЛЬ ЖИЗНИ И ДИКОЙ ПРИРОДЫ</div>
+            <h1 id="pageTitle">Хозяин леса</h1>
+            <p id="pageDescription">«Я был до вас. Я был при вас. Я буду после вас».</p>
+          </div>
+          <div class="hero-seal">♧</div>
+        </section>
+
+        <div id="view-dashboard" class="view active"></div>
+        <div id="view-map" class="view"></div>
+        <div id="view-advisor" class="view"></div>
+        <div id="view-states" class="view"></div>
+        <div id="view-worship" class="view"></div>
+        <div id="view-contracts" class="view"></div>
+        <div id="view-druids" class="view"></div>
+        <div id="view-war" class="view"></div>
+        <div id="view-journal" class="view"></div>
+        <div id="view-rules" class="view"></div>
+
+        <footer class="app-footer"><span>ХОЗЯИН ЛЕСА · РЕГЛАМЕНТ ПОКРОВИТЕЛЬСТВА</span><span id="saveStatus">Изменения сохраняются в этом браузере</span></footer>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header class="modal-header"><div><div class="eyebrow">ЛЕТОПИСЬ ВЛАДЫКИ</div><h2 id="modalTitle">Действие</h2></div><button class="close-btn" id="modalClose" aria-label="Закрыть">×</button></header>
+      <div id="modalBody" class="modal-body"></div>
+      <footer id="modalFooter" class="modal-footer"></footer>
+    </section>
+  </div>
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+  <script src="military-advisor.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

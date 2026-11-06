@@ -1,8 +1,17 @@
-Публикация через GitHub Pages
+ПУБЛИКАЦИЯ «ХОЗЯИНА ЛЕСА» ЧЕРЕЗ GITHUB PAGES
 
-1. Repository -> Settings -> Pages.
-2. В Build and deployment выберите Source: GitHub Actions.
-3. Откройте вкладку Actions и дождитесь workflow Deploy website to GitHub Pages.
-4. Адрес сайта: https://teniraut132-bit.github.io/lord-of-the-woods/
+1. Откройте https://github.com/new
+2. Repository name: lord-of-the-woods
+3. Выберите Public.
+4. Не добавляйте README, .gitignore или лицензию (создайте пустой репозиторий).
+5. Нажмите Create repository.
+6. Загрузите в корень репозитория содержимое этого ZIP-архива (именно содержимое папки, а не сам ZIP).
+7. Откройте Settings -> Pages.
+8. В Build and deployment -> Source выберите GitHub Actions.
+9. Перейдите в Actions и дождитесь зелёного завершения workflow Deploy website to GitHub Pages.
+10. Сайт: https://teniraut132-bit.github.io/lord-of-the-woods/
 
-Данные пока хранятся локально в браузере. Для общей синхронизации необходима облачная база данных.
+ПРИМЕЧАНИЕ
+Сайт будет доступен всем по ссылке. Но в этой версии данные сохраняются отдельно в браузере каждого участника. Для общей кампании с синхронизацией нужна отдельная облачная база данных и авторизация.
+
+Не публикуйте секреты, пароли, API-ключи и личные данные.
