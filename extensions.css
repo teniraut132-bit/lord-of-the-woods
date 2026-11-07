@@ -66,11 +66,8 @@
 .ma-results-table tr.unit-win:not(.loss-heavy):not(.loss-small) td{background:#1f3b26}
 .ma-results-table tr.unit-lose:not(.loss-heavy):not(.loss-small) td{background:#3a2a22}
 
-/* Military adviser 3.0 — state roster, structured stats and racial profiles */
+/* Military adviser 3.3 — manual side parameters, no external state roster */
 .ma-field-wide{grid-column:1/-1}
-.ma-linked-state{display:grid;gap:4px;margin:10px 0;padding:10px 12px;border:1px solid #536b49;background:#17251a;border-radius:8px}
-.ma-linked-state strong{color:#e6d9ae;font-size:11px}
-.ma-linked-state span{color:#9da995;font-size:9px;line-height:1.5}
 .ma-army-flags{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:9px 0}
 .ma-army-flags label{display:flex;align-items:center;gap:7px;padding:8px 9px;border:1px solid #ffffff12;border-radius:7px;background:#111d15;color:#a9b49f;font-size:9px;line-height:1.4}
 .ma-army-flags input{accent-color:#b89a50;margin:0}
@@ -79,11 +76,6 @@
 .ma-race-profile img{width:100%;height:150px;object-fit:cover;display:block;border-radius:7px;border:1px solid #6f603b}
 .ma-race-profile strong{display:block;color:#e8d79f;font-family:'Cormorant Garamond',serif;font-size:19px;margin-bottom:5px}
 .ma-race-profile p{margin:6px 0;color:#b3b9a8;font-size:10px;line-height:1.6}.ma-race-profile p b{color:#dfcf9b}
-.ma-roster-card{margin:14px 0 18px;border-top:2px solid #a58b4a}
-.ma-roster-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
-.ma-roster-meta{font-size:10px;color:#8f9c88;margin:0 0 10px}
-.ma-roster-meta strong{color:#e5d4a0}
-.ma-roster-table{min-width:760px}
 .ma-recruitment-result{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0}
 .ma-recruitment-result>div{display:grid;gap:4px;padding:12px;background:#142018;border:1px solid #ffffff12;border-radius:8px}
 .ma-recruitment-result span{font-size:9px;color:#879681}
@@ -91,6 +83,22 @@
 .ma-effect-note{margin-top:10px}
 .ma-effect-note ul{padding-left:18px;margin:6px 0 0}
 .ma-effect-note li{margin:3px 0}
-@media(max-width:760px){.ma-race-profile{grid-template-columns:1fr}.ma-race-profile img{max-width:100%;height:auto;max-height:230px}.ma-army-flags{grid-template-columns:1fr}.ma-roster-actions{align-self:flex-start}}
+@media(max-width:760px){.ma-race-profile{grid-template-columns:1fr}.ma-race-profile img{max-width:100%;height:auto;max-height:230px}.ma-army-flags{grid-template-columns:1fr}}
 
-.ma-linked-extra-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:5px 12px;margin-top:7px;padding-top:7px;border-top:1px solid var(--line,rgba(120,110,90,.25));font-size:12px}.ma-linked-extra-stats strong{grid-column:1/-1;color:var(--muted,#8a8a8a);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+
+
+/* Race codex 3.3 — user-supplied artwork, no country registry panel */
+.ma-race-catalog{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch}
+.ma-race-entry{display:grid;grid-template-columns:minmax(150px,36%) minmax(0,1fr);gap:13px;min-width:0;padding:12px;border:1px solid rgba(213,180,95,.32);border-radius:12px;background:linear-gradient(145deg,rgba(31,43,32,.96),rgba(18,27,21,.98));box-shadow:0 9px 24px rgba(0,0,0,.16)}
+.ma-race-entry-art{display:flex;align-items:center;justify-content:center;min-height:190px;overflow:hidden;border:1px solid rgba(213,180,95,.24);border-radius:8px;background:#0d140f}
+.ma-race-entry-art img{display:block;width:100%;height:100%;min-height:190px;max-height:260px;object-fit:contain}
+.ma-race-entry-body{min-width:0;display:flex;flex-direction:column;gap:6px}
+.ma-race-entry-kicker{font-size:9px;letter-spacing:.15em;color:#9eaa8f;font-weight:800}
+.ma-race-entry h3{font-family:'Cormorant Garamond',serif;font-size:24px;line-height:1.05;color:#e9d59c;margin:0}
+.ma-race-entry p{font-size:11px;line-height:1.55;color:#c0c8b8;margin:0}
+.ma-race-entry-facts{display:grid;gap:7px;margin-top:auto;padding-top:8px;border-top:1px solid rgba(213,180,95,.15)}
+.ma-race-entry-facts>div{display:grid;gap:2px}
+.ma-race-entry-facts b{font-size:9px;color:#ddc77f;letter-spacing:.02em}
+.ma-race-entry-facts span{font-size:10px;line-height:1.45;color:#aeb9a5}
+@media(max-width:1050px){.ma-race-catalog{grid-template-columns:1fr}}
+@media(max-width:600px){.ma-race-entry{grid-template-columns:1fr}.ma-race-entry-art{min-height:210px}.ma-race-entry-art img{max-height:280px}.ma-race-entry h3{font-size:22px}}
