@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lord-of-the-woods-v7-user-race-art-no-roster';
+const CACHE_NAME = 'lord-of-the-woods-v8-race-art-contain';
 const ASSETS = [
   './',
   './index.html',
