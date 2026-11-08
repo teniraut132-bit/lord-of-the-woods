@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lord-of-the-woods-v11-supabase-config-34';
+const CACHE_NAME = 'lord-of-the-woods-v12-sync-status-34';
 const ASSETS = [
   './',
   './index.html',
