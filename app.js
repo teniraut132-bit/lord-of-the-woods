@@ -505,6 +505,13 @@
   $('#mobileMenu').onclick=()=>$('#sidebar').classList.toggle('open');
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
+  // Keep the owner's shared activity inbox fresh while the admin view is open.
+  setInterval(async()=>{
+    if(currentView!=='admin'||!$('#adminInboxContent')||!window.LOTWBackend?.getAdminSession)return;
+    try{const session=await window.LOTWBackend.getAdminSession();if(session.loggedIn)await loadAdminInbox();}
+    catch(error){console.warn('[LOTW] Admin inbox refresh:',error?.message||error);}
+  },15000);
+
   if(typeof navigator!=='undefined'&&'serviceWorker' in navigator&&typeof location!=='undefined'&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 
   // Initial render; the application starts with an empty register rather than fabricated example data.
