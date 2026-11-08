@@ -66,7 +66,7 @@
 .ma-results-table tr.unit-win:not(.loss-heavy):not(.loss-small) td{background:#1f3b26}
 .ma-results-table tr.unit-lose:not(.loss-heavy):not(.loss-small) td{background:#3a2a22}
 
-/* Military adviser 3.3 — manual side parameters, no external state roster */
+/* Military adviser 3.4 — manual side parameters, no external state roster */
 .ma-field-wide{grid-column:1/-1}
 .ma-army-flags{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:9px 0}
 .ma-army-flags label{display:flex;align-items:center;gap:7px;padding:8px 9px;border:1px solid #ffffff12;border-radius:7px;background:#111d15;color:#a9b49f;font-size:9px;line-height:1.4}
@@ -87,7 +87,7 @@
 
 
 
-/* Race codex 3.3 — user-supplied artwork, no country registry panel */
+/* Race codex 3.4 — user-supplied artwork, no country registry panel */
 .ma-race-catalog{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch}
 .ma-race-entry{display:grid;grid-template-columns:minmax(135px,32%) minmax(0,1fr);gap:13px;min-width:0;padding:12px;border:1px solid rgba(213,180,95,.32);border-radius:12px;background:linear-gradient(145deg,rgba(31,43,32,.96),rgba(18,27,21,.98));box-shadow:0 9px 24px rgba(0,0,0,.16)}
 .ma-race-entry-art{display:flex;align-items:center;justify-content:center;min-height:170px;max-height:220px;overflow:hidden;border:1px solid rgba(213,180,95,.24);border-radius:8px;background:#0d140f}

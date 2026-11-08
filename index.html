@@ -7,7 +7,7 @@
   <meta name="description" content="Система управления божественным покровительством Хозяина леса.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="assets/icon-192.png">
-  <title>Хозяин леса — управление покровительством</title>
+  <title>Хозяин леса — версия 3.4</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -31,6 +31,7 @@
         <button class="nav-item" data-view="contracts"><span class="nav-icon">⚖</span><span>Контракты</span></button>
         <button class="nav-item" data-view="druids"><span class="nav-icon">❧</span><span>Друиды</span></button>
         <button class="nav-item" data-view="journal"><span class="nav-icon">☷</span><span>Журнал действий</span></button>
+        <button class="nav-item" data-view="admin"><span class="nav-icon">♜</span><span>Режим администратора</span></button>
       </nav>
       <div class="side-caption side-caption-spaced">СПРАВОЧНИК</div>
       <nav class="nav-list">
@@ -49,6 +50,7 @@
         <div class="breadcrumbs"><span>Летопись</span><b>/</b><strong id="crumbTitle">Обзор</strong></div>
         <div class="top-actions">
           <label class="state-select-wrap"><span>Государство</span><select id="globalStateSelect"><option value="">Не выбрано</option></select></label>
+          <input id="playerNameInput" class="player-name-input" maxlength="48" placeholder="Имя игрока" title="Имя, которое будет отображаться в очереди обращений" aria-label="Имя игрока">
           <button class="btn small top-quick-blessing" data-action="quick-blessing" title="Быстро запросить благословение">✦ Благословить</button>
           <button class="btn small ghost top-repeat-blessing" id="repeatBlessingBtn" data-action="repeat-blessing" title="Повторить последнее благословение" hidden>↻ Повторить</button>
           <button class="icon-btn" id="exportBtn" title="Экспорт резервной копии">⇩</button>
@@ -77,6 +79,7 @@
         <div id="view-contracts" class="view"></div>
         <div id="view-druids" class="view"></div>
         <div id="view-journal" class="view"></div>
+        <div id="view-admin" class="view"></div>
         <div id="view-rules" class="view"></div>
         <div id="view-races" class="view"></div>
 
@@ -93,6 +96,9 @@
     </section>
   </div>
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="backend-config.js"></script>
+  <script src="backend.js"></script>
   <script src="military-advisor.js"></script>
   <script src="app.js"></script>
 </body>

@@ -1,11 +1,14 @@
-const CACHE_NAME = 'lord-of-the-woods-v8-race-art-contain';
+const CACHE_NAME = 'lord-of-the-woods-v10-admin-prayers-battle-audit-34';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './extensions.css',
   './app.js',
+  './backend.js',
+  './backend-config.js',
   './military-advisor.js',
+  './SUPABASE_SETUP_RU.md',
   './manifest.webmanifest',
   './assets/lord-portrait.webp',
   './assets/forest-banner.webp',
@@ -27,7 +30,12 @@ const ASSETS = [
   './assets/races/tavurs.webp',
   './assets/races/taungurs.webp',
   './assets/races/brugachi.webp',
-  './assets/races/drukhari.webp'
+  './assets/races/drukhari.webp',
+  './assets/races/humans.webp',
+  './assets/races/dwarves.webp',
+  './assets/races/orcs.webp',
+  './assets/races/elves.webp',
+  './assets/races/halflings.webp'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
