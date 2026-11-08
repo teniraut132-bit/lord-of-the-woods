@@ -1,7 +1,8 @@
 /* Хозяин леса — общий мир на Supabase; резервные копии создаются вручную через экспорт. */
 (() => {
   'use strict';
-  const DB_KEY = 'lordOfTheWoods.manager.v1';
+  const DB_KEY = 'lordOfTheWoods.manager.v1'; // legacy local database: migration source only
+  const BACKUP_CACHE_KEY = 'lordOfTheWoods.backupCache.v1';
   const $ = (s, root=document) => root.querySelector(s);
   const $$ = (s, root=document) => [...root.querySelectorAll(s)];
   const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -105,6 +106,7 @@
       }else{
         sharedAppRevision=result.revision;
         sharedAppSyncedPayload=payload;
+        updateLocalBackupCache();
         if(!sharedAppPending)$('#saveStatus').textContent='Все изменения сохранены в общей базе';
       }
     }catch(error){
@@ -126,6 +128,14 @@
     clearTimeout(sharedAppSaveTimer);
     sharedAppSaveTimer=setTimeout(flushSharedApp,450);
   }
+  function updateLocalBackupCache(){
+    try{
+      const snapshot={...JSON.parse(JSON.stringify(db)),militaryAdvisor:window.MilitaryAdvisor?.exportData?.()||null,backupUpdatedAt:new Date().toISOString()};
+      localStorage.setItem(BACKUP_CACHE_KEY,JSON.stringify(snapshot));
+    }catch(error){console.warn('[LOTW] Could not update local backup cache:',error);}
+  }
+  window.LOTWUpdateBackupCache=updateLocalBackupCache;
+
   async function savePlayerProfile(){
     if(!sharedAppReady||!window.LOTWBackend?.saveProfile)return;
     try{
@@ -145,6 +155,7 @@
       if(!db.states.some(st=>st.id===db.activeStateId))db.activeStateId=db.states[0]?.id||null;
       sharedAppRevision=remote.revision;
       sharedAppSyncedPayload=appSharedPayload();
+      updateLocalBackupCache();
       renderAll();
       $('#saveStatus').textContent='Общий мир обновлён · '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
     }catch(error){console.warn('[LOTW] Shared world refresh failed:',error);}
@@ -170,6 +181,7 @@
       if(window.MilitaryAdvisor){
         window.MilitaryAdvisor.setSharedData(militaryRemote.payload,militaryRemote.revision);
       }
+      updateLocalBackupCache();
 
       // One-time bridge from the previous local-only version. It is offered only
       // when the cloud world is empty; after migration localStorage is never used
@@ -590,8 +602,17 @@
   }
   function renderAll(){renderHeader();renderDashboard();renderMap();renderStates();renderWorship();renderContracts();renderDruids();renderJournal();renderAdmin();renderRules();renderMyResponses();if(window.MilitaryAdvisor){window.MilitaryAdvisor.render();window.MilitaryAdvisor.renderRaceCatalog($('#view-races'));}$$('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${currentView}`));$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===currentView));}
   function navigate(view){if(!$('#view-'+view))return;currentView=view;renderAll();$('#sidebar').classList.remove('open');window.scrollTo({top:0,behavior:'smooth'});}
-  function exportBackup(){const blob=new Blob([JSON.stringify({...db,militaryAdvisor:window.MilitaryAdvisor?.exportData?.()||null,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Хозяин_леса_резервная_копия_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);toast('Резервная копия подготовлена.');}
-  function importBackup(file){const reader=new FileReader();reader.onload=()=>{try{const incoming=JSON.parse(reader.result);if(!incoming||!Array.isArray(incoming.states)||!Array.isArray(incoming.journal))throw new Error('Формат файла не распознан.');if(!confirm(`Импортировать ${incoming.states.length} государств? Текущие данные будут заменены.`))return;incoming.states.forEach(s=>{normalizeStateRecord(s);delete s.rosterId;s.race||='';s.population??=null;s.feudals??=null;s.temples ||= {chapel:false,root:false,abode:false};s.rootTempleRegionId ||= null;s.regions ||= [];s.regions.forEach(r=>{r.crises ||= {famine:false,plague:false,devastation:false,wildBeasts:false};r.foodProduction ??= 0;r.populationGrowth ??= 1;r.peasantLoyalty ??= 55;});s.contracts ||= [];s.druids ||= [];s.effects ||= [];s.druids.forEach(d=>{d.gifts ||= [];d.giftNames ||= [];});});db={version:1,activeStateId:incoming.activeStateId||incoming.states[0]?.id||null,states:incoming.states,journal:incoming.journal,createdAt:incoming.createdAt||new Date().toISOString()};if(incoming.militaryAdvisor&&window.MilitaryAdvisor)window.MilitaryAdvisor.importData(incoming.militaryAdvisor);saveDB();renderAll();toast('Резервная копия успешно загружена.');}catch(e){toast('Не удалось прочитать резервную копию: '+e.message,'error');}};reader.readAsText(file);}
+  function exportBackup(){
+    let snapshot={...JSON.parse(JSON.stringify(db)),militaryAdvisor:window.MilitaryAdvisor?.exportData?.()||null};
+    if(!sharedAppReady){
+      try{const cached=JSON.parse(localStorage.getItem(BACKUP_CACHE_KEY)||'null');if(cached?.states&&Array.isArray(cached.states))snapshot=cached;}catch(error){console.warn('[LOTW] Backup cache could not be read:',error);}
+    }
+    snapshot.exportedAt=new Date().toISOString();
+    const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download=`Хозяин_леса_резервная_копия_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);
+    toast(sharedAppReady?'Резервная копия общего мира подготовлена.':'Подготовлена последняя локальная резервная копия; проверьте её дату.','ok');
+  }
+  function importBackup(file){const reader=new FileReader();reader.onload=()=>{try{const incoming=JSON.parse(reader.result);if(!incoming||!Array.isArray(incoming.states)||!Array.isArray(incoming.journal))throw new Error('Формат файла не распознан.');if(!confirm(`Импортировать ${incoming.states.length} государств? Текущие данные будут заменены.`))return;incoming.states.forEach(s=>{normalizeStateRecord(s);delete s.rosterId;s.race||='';s.population??=null;s.feudals??=null;s.temples ||= {chapel:false,root:false,abode:false};s.rootTempleRegionId ||= null;s.regions ||= [];s.regions.forEach(r=>{r.crises ||= {famine:false,plague:false,devastation:false,wildBeasts:false};r.foodProduction ??= 0;r.populationGrowth ??= 1;r.peasantLoyalty ??= 55;});s.contracts ||= [];s.druids ||= [];s.effects ||= [];s.druids.forEach(d=>{d.gifts ||= [];d.giftNames ||= [];});});db={version:1,activeStateId:incoming.activeStateId||incoming.states[0]?.id||null,states:incoming.states,journal:incoming.journal,createdAt:incoming.createdAt||new Date().toISOString()};if(incoming.militaryAdvisor&&window.MilitaryAdvisor)window.MilitaryAdvisor.importData(incoming.militaryAdvisor);saveDB();savePlayerProfile();updateLocalBackupCache();renderAll();toast('Резервная копия загружена в общий мир.');}catch(e){toast('Не удалось прочитать резервную копию: '+e.message,'error');}};reader.readAsText(file);}
 
   document.addEventListener('click',e=>{
     const nav=e.target.closest('[data-view],[data-nav]');if(nav){navigate(nav.dataset.view||nav.dataset.nav);return;}
