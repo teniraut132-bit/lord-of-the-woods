@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lord-of-the-woods-v14-cloud-world-35';
+const CACHE_NAME = 'lord-of-the-woods-v15-cloud-world-35';
 const ASSETS = [
   './',
   './index.html',
