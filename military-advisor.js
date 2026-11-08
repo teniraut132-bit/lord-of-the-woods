@@ -173,7 +173,7 @@
   };
   const defaultArmy = (name) => ({name,units:[],siege_engines:[],fortification:0,priests:0,cleric:100,feudal_loyalty:60,feudal_count:0,recruitment_specialists_base:null,recruitment_rabble_base:null,craft:0,linked_state_name:'',race:'Не указана',nationalAgony:false,princeCommand:false,warNotApproved:false,thrallsDrugged:false,commanderLost:false,kurultaiThisTurn:false,leaderPersonallyPresent:false});
   const defaultData = () => ({version:1,turn:0,army_a:defaultArmy('Армия A'),army_b:defaultArmy('Армия B'),order_a:'Атака в лоб',order_b:'Оборона',history:[],last_report:null});
-  let data = load();
+  let data = defaultData();
   let rootNode = null;
   let selfTestRunning = false;
   let handlersBound = false;
@@ -197,11 +197,79 @@
     out.feudal_count=Math.max(0,n(out.feudal_count));out.craft=Math.max(0,n(out.craft));out.feudal_loyalty=clamp(out.feudal_loyalty,0,100);out.linked_state_name=String(out.linked_state_name||'');delete out.linked_state_id;out.race=normalizeRace(out.race);delete out.iron_sources;delete out.ironSources;delete out.arsenal;delete out.citadel;out.nationalAgony=!!out.nationalAgony;out.princeCommand=!!out.princeCommand;out.warNotApproved=!!out.warNotApproved;out.thrallsDrugged=!!out.thrallsDrugged;out.commanderLost=!!out.commanderLost;out.kurultaiThisTurn=!!out.kurultaiThisTurn;out.leaderPersonallyPresent=!!out.leaderPersonallyPresent;if(!isSkavenArmy(out)){out.craft=0;out.thrallsDrugged=false;}
     return out;
   }
-  function load() {
-    try { const d=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'); if(!d)return defaultData(); return {...defaultData(),...d,army_a:normalizeArmy(d.army_a,'Армия A'),army_b:normalizeArmy(d.army_b,'Армия B'),history:Array.isArray(d.history)?d.history:[]}; }
-    catch { return defaultData(); }
+  let sharedRevision = 0;
+  let sharedReady = false;
+  let sharedSaving = false;
+  let sharedPending = false;
+  let sharedConflict = false;
+  let sharedSaveTimer = null;
+
+  function normalizeCampaign(incoming={}){
+    const d={...defaultData(),...incoming};
+    d.army_a=normalizeArmy(d.army_a,'Армия A');
+    d.army_b=normalizeArmy(d.army_b,'Армия B');
+    d.history=Array.isArray(d.history)?d.history:[];
+    d.last_report=d.last_report||d.history[d.history.length-1]||null;
+    return d;
   }
-  function save(){ try { localStorage.setItem(STORAGE_KEY,JSON.stringify(data)); const el=$('#saveStatus'); if(el)el.textContent='Изменения сохраняются в этом браузере'; } catch(e) { console.warn('Military adviser save failed',e); } }
+  function load(){return defaultData();}
+  async function flushSharedNow(){
+    if(!sharedReady||sharedSaving||!sharedPending||sharedConflict)return {ok:false};
+    sharedSaving=true;
+    sharedPending=false;
+    const payload=JSON.parse(JSON.stringify(data));
+    try{
+      const result=await window.LOTWBackend.saveSharedPart('military',payload,sharedRevision);
+      if(result.conflict){
+        sharedConflict=true;
+        notify('Общая военная кампания изменена другим участником. Обновите страницу, чтобы не затереть его изменения.','error');
+        return {ok:false,conflict:true};
+      }
+      sharedRevision=result.revision;
+      const el=$('#saveStatus');if(el)el.textContent='Военная кампания сохранена в общей базе';
+      return {ok:true,revision:sharedRevision};
+    }catch(error){
+      console.error('[LOTW] Shared military save failed:',error);
+      notify('Не удалось сохранить общую военную кампанию: '+(error.message||String(error)),'error');
+      return {ok:false,error:error.message||String(error)};
+    }finally{
+      sharedSaving=false;
+      if(sharedPending&&!sharedConflict){
+        clearTimeout(sharedSaveTimer);
+        sharedSaveTimer=setTimeout(flushSharedNow,250);
+      }
+    }
+  }
+  function save(){
+    if(!sharedReady||sharedConflict)return;
+    sharedPending=true;
+    clearTimeout(sharedSaveTimer);
+    sharedSaveTimer=setTimeout(flushSharedNow,450);
+  }
+  function setSharedData(incoming,revision=0){
+    data=normalizeCampaign(incoming||defaultData());
+    sharedRevision=Number(revision)||0;
+    sharedReady=true;
+    sharedPending=false;
+    sharedConflict=false;
+    render();
+  }
+  async function saveSharedNow(){
+    if(!sharedReady)return {ok:false,error:'Общая военная кампания ещё не загружена.'};
+    clearTimeout(sharedSaveTimer);
+    sharedPending=true;
+    return flushSharedNow();
+  }
+  async function refreshShared(){
+    if(!sharedReady||sharedPending||sharedSaving||sharedConflict||!window.LOTWBackend?.loadSharedPart)return;
+    try{
+      const remote=await window.LOTWBackend.loadSharedPart('military');
+      if(remote.revision<=sharedRevision)return;
+      data=normalizeCampaign(remote.payload||defaultData());
+      sharedRevision=remote.revision;
+      render();
+    }catch(error){console.warn('[LOTW] Shared military refresh failed:',error);}
+  }
   function notify(message,type='ok'){const region=$('#toastRegion');if(!region){console[type==='error'?'error':'log'](message);return;}const el=document.createElement('div');el.className='toast'+(type==='error'?' error':'');el.textContent=message;region.append(el);setTimeout(()=>el.remove(),4200);}
   function trainingFloor(u){return u.race==='Вампиры'&&u.category==='специалисты'?50:0;}
   function moraleMultiplier(u,army=null){let m=1;if(u.race==='Друкхари')m*=1.2;if(u.race==='Бругачи'&&u.count>100)m*=.9;if(army&&isTaungurArmy(army))m*=1.05;if(army&&isTavurArmy(army))m*=1.05;if(army&&isTavurArmy(army)&&army.nationalAgony&&ORDERS[army===data.army_a?data.order_a:data.order_b]?.defensive)m*=2;return m;}
@@ -351,7 +419,7 @@
   function exportCampaign(){const blob=new Blob([JSON.stringify({...data,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Военный_советник_кампания_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}
   function exportArmy(tag){const army=tag==='B'?data.army_b:data.army_a;const blob=new Blob([JSON.stringify(army,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Армия_${tag}_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);notify(`Армия ${tag} экспортирована.`);}
   function importCampaignFile(file){const reader=new FileReader();reader.onload=()=>{try{const x=JSON.parse(reader.result);if(!x.army_a||!x.army_b)throw new Error('В файле отсутствуют армии A и B.');if(!confirm('Загрузить кампанию? Текущие армии и история будут заменены.'))return;data={...defaultData(),...x,army_a:normalizeArmy(x.army_a,'Армия A'),army_b:normalizeArmy(x.army_b,'Армия B'),history:Array.isArray(x.history)?x.history:[]};data.last_report=x.last_report||data.history[data.history.length-1]||null;save();render();notify('Кампания военного советника загружена.');}catch(err){notify('Ошибка импорта: '+err.message,'error');}};reader.readAsText(file);}
-  function importData(incoming){if(!incoming||!incoming.army_a||!incoming.army_b)return;data={...defaultData(),...incoming,army_a:normalizeArmy(incoming.army_a,'Армия A'),army_b:normalizeArmy(incoming.army_b,'Армия B'),history:Array.isArray(incoming.history)?incoming.history:[]};data.last_report=incoming.last_report||data.history[data.history.length-1]||null;save();render();}
+  function importData(incoming){if(!incoming||!incoming.army_a||!incoming.army_b)return;data=normalizeCampaign(incoming);save();render();}
   function runSelfTests(){
     const saved=data;const results=[];const check=(name,fn)=>{try{const detail=fn();results.push({name,ok:true,detail});}catch(error){results.push({name,ok:false,detail:error.message});}};
     const fixture=(orderA='Атака в лоб')=>({version:1,turn:0,army_a:normalizeArmy({name:'Тест A',units:[{name:'Пехота A',type:'пехота',category:'сброд',count:1000,training:60,morale:60,armor:'кольчуга',weapon:'одноручное'}],cleric:100,feudal_loyalty:60}),army_b:normalizeArmy({name:'Тест B',units:[{name:'Пехота B',type:'пехота',category:'сброд',count:1000,training:60,morale:60,armor:'кольчуга',weapon:'одноручное'}],cleric:100,feudal_loyalty:60}),order_a:orderA,order_b:'Оборона',history:[],last_report:null});
@@ -377,5 +445,5 @@
   }
   function exportData(){return JSON.parse(JSON.stringify(data));}
   function init(){rootNode=$('#view-advisor');render();}
-  window.MilitaryAdvisor={init,render,renderRaceCatalog,exportData,importData,runSelfTests};
+  window.MilitaryAdvisor={init,render,renderRaceCatalog,exportData,importData,setSharedData,saveSharedNow,refreshShared,runSelfTests};
 })();
