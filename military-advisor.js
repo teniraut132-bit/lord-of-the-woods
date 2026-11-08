@@ -226,6 +226,7 @@
         return {ok:false,conflict:true};
       }
       sharedRevision=result.revision;
+      window.LOTWUpdateBackupCache?.();
       const el=$('#saveStatus');if(el)el.textContent='Военная кампания сохранена в общей базе';
       return {ok:true,revision:sharedRevision};
     }catch(error){
@@ -267,6 +268,7 @@
       if(remote.revision<=sharedRevision)return;
       data=normalizeCampaign(remote.payload||defaultData());
       sharedRevision=remote.revision;
+      window.LOTWUpdateBackupCache?.();
       render();
     }catch(error){console.warn('[LOTW] Shared military refresh failed:',error);}
   }
