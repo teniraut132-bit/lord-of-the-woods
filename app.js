@@ -600,14 +600,30 @@
     $('#refreshMyResponses')?.addEventListener('click',renderMyResponses);
   }
 
-  async function loadAdminInbox(){
-    const target=$('#adminInboxContent');if(!target)return;
-    target.innerHTML='<div class="small-note">Загружаем общую очередь…</div>';
+  let adminInboxLoading=false;
+  async function loadAdminInbox({force=false}={}){
+    const target=$('#adminInboxContent');if(!target||adminInboxLoading)return;
+    // A periodic refresh must never destroy a draft or an input currently being edited.
+    const activeForm=target.querySelector('form[data-admin-reply-form][data-dirty="true"]');
+    const focused=target.contains(document.activeElement);
+    if(!force&&(activeForm||focused))return;
+    adminInboxLoading=true;
     try{
       const rows=await window.LOTWBackend.adminInbox();
       if(!$('#adminInboxContent'))return;
+      // The user may have started typing while the request was in flight.
+      if(target.querySelector('form[data-admin-reply-form][data-dirty="true"]')||target.contains(document.activeElement))return;
+      const drafts=new Map([...target.querySelectorAll('form[data-admin-reply-form]')].map(f=>[f.dataset.id,{
+        reply:f.elements.reply?.value||'',status:f.elements.status?.value||'answered',dirty:f.dataset.dirty==='true'
+      }]));
       target.innerHTML=rows.length?`<div class="list">${rows.map(r=>`<article class="card admin-event-card"><div class="state-head"><div><div class="card-title">${esc(r.player_name||'Игрок без имени')} · ${esc(r.state_name||'Без государства')} · ID ${esc(String(r.actor_id||'').slice(0,8))}</div><h3 style="font-family:'Cormorant Garamond';font-size:21px;color:#ecdfb9;margin:6px 0">${esc(r.title)}</h3></div><span class="pill ${r.status==='new'?'gold':r.status==='rejected'?'red':'gray'}">${esc(r.status)}</span></div><div class="small-note">${new Date(r.created_at).toLocaleString('ru-RU')} · ${esc(r.event_type)} · Клирика ${fmt(r.cleric_delta)} · Благосклонность ${fmt(r.favor_delta)}</div><p style="font-size:11px;line-height:1.65;color:#c3cbb9;white-space:pre-wrap;margin:10px 0">${esc(r.details||'—')}</p>${r.admin_reply?`<div class="notice green"><b>Предыдущий ответ:</b><br>${esc(r.admin_reply)}</div>`:''}<form data-admin-reply-form data-id="${esc(r.id)}" style="margin-top:12px"><div class="field-grid"><div class="field full"><label>Ответ игроку</label><textarea name="reply" rows="3" required placeholder="Решение Владыки, указания или уточняющий вопрос">${esc(r.admin_reply||'')}</textarea></div><div class="field"><label>Статус обращения</label><select name="status"><option value="answered" ${r.status==='answered'?'selected':''}>Отвечено</option><option value="approved" ${r.status==='approved'?'selected':''}>Одобрено</option><option value="rejected" ${r.status==='rejected'?'selected':''}>Отклонено</option><option value="needs-info" ${r.status==='needs-info'?'selected':''}>Нужны сведения</option></select></div><div class="field" style="align-self:end"><button class="btn small" type="submit">Отправить ответ</button></div></div></form></article>`).join('')}</div>`:'<div class="empty-state"><h3>Очередь пуста</h3><p>Когда игроки отправят молитвы, просьбы, заявки на ресурсы или совершат другие действия, они появятся здесь.</p></div>';
+      // Restore drafts that were not submitted, even after a manual refresh.
+      for(const [id,draft] of drafts){
+        const form=target.querySelector(`form[data-admin-reply-form][data-id="${CSS.escape(id)}"]`);
+        if(form&&draft.dirty){form.elements.reply.value=draft.reply;form.elements.status.value=draft.status;form.dataset.dirty='true';}
+      }
     }catch(e){target.innerHTML=`<div class="notice red">Не удалось загрузить очередь: ${esc(e.message||e)}. Проверьте SQL/RLS и роль администратора.</div>`;}
+    finally{adminInboxLoading=false;}
   }
 
   async function renderAdmin(){
@@ -675,20 +691,44 @@
       case 'prayer':showPrayerModal();break;
       case 'favor-action':showFavorActionModal();break;
       case 'advance-state-turn':advanceStateTurn();break;
-      case 'admin-refresh':loadAdminInbox();break;
+      case 'admin-refresh':loadAdminInbox({force:true});break;
       case 'admin-logout':window.LOTWBackend?.adminLogout?.().then(()=>{renderAll();toast('Вы вышли из режима администратора.');}).catch(err=>toast(err.message,'error'));break;
     }
   });
   $('#globalStateSelect').addEventListener('change',e=>setActiveState(e.target.value));
   $('#playerNameInput').addEventListener('change',e=>{db.playerName=String(e.target.value||'').trim().slice(0,48);window.LOTW_PLAYER_NAME=db.playerName;savePlayerProfile();toast(db.playerName?`Имя игрока сохранено: ${db.playerName}`:'Имя игрока очищено.');});
+  // Capture admin form submissions before the browser's default submit/navigation action.
   document.addEventListener('submit',async e=>{
-    if(e.target.id==='adminLoginForm'){e.preventDefault();const f=e.target,fd=new FormData(f),err=$('#adminLoginError');try{await window.LOTWBackend.loginAdmin(fd.get('email'),fd.get('password'));renderAll();toast('Режим администратора открыт.');}catch(error){if(err)err.textContent=error.message||String(error);}}
-    if(e.target.matches('[data-admin-reply-form]')){e.preventDefault();const f=e.target,fd=new FormData(f);try{await window.LOTWBackend.replyToActivity(f.dataset.id,fd.get('reply'),fd.get('status'));toast('Ответ отправлен игроку.');await loadAdminInbox();}catch(error){toast(error.message||String(error),'error');}}
-  });
-  $('#modalClose').onclick=closeModal;$('#modalBackdrop').addEventListener('click',e=>{if(e.target===$('#modalBackdrop'))closeModal();});
+    if(e.target.id==='adminLoginForm'){
+      e.preventDefault();e.stopPropagation();
+      const f=e.target,fd=new FormData(f),err=$('#adminLoginError'),button=f.querySelector('button[type="submit"]');
+      if(button)button.disabled=true;
+      try{await window.LOTWBackend.loginAdmin(fd.get('email'),fd.get('password'));renderAll();toast('Режим администратора открыт.');}
+      catch(error){if(err)err.textContent=error.message||String(error);}
+      finally{if(button)button.disabled=false;}
+      return;
+    }
+    if(e.target.matches('[data-admin-reply-form]')){
+      e.preventDefault();e.stopPropagation();
+      const f=e.target,fd=new FormData(f),button=f.querySelector('button[type="submit"]');
+      if(button)button.disabled=true;
+      f.dataset.saving='true';
+      try{
+        await window.LOTWBackend.replyToActivity(f.dataset.id,fd.get('reply'),fd.get('status'));
+        f.dataset.dirty='false';
+        toast('Ответ отправлен игроку.');
+        await loadAdminInbox({force:true});
+      }catch(error){toast(error.message||String(error),'error');}
+      finally{if(button&&button.isConnected)button.disabled=false;delete f.dataset.saving;}
+      return;
+    }
+  },true);
+  document.addEventListener('input',e=>{const f=e.target.closest?.('form[data-admin-reply-form]');if(f)f.dataset.dirty='true';});
+  document.addEventListener('change',e=>{const f=e.target.closest?.('form[data-admin-reply-form]');if(f)f.dataset.dirty='true';});
+  $('#modalClose').onclick=closeModal;
   $('#exportBtn').onclick=exportBackup;$('#importBtn').onclick=()=>$('#importFile').click();$('#importFile').onchange=e=>{if(e.target.files[0])importBackup(e.target.files[0]);e.target.value='';};
   $('#mobileMenu').onclick=()=>$('#sidebar').classList.toggle('open');
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){const form=$('#modalBody form');if(form&&form.querySelector('input,select,textarea'))return;closeModal();}});
 
   // Keep the owner's shared activity inbox fresh while the admin view is open.
   setInterval(async()=>{
