@@ -1,4 +1,4 @@
-/* Хозяин леса — браузерный прототип. Все данные сохраняются локально в текущем браузере. */
+/* Хозяин леса — общий мир на Supabase; резервные копии создаются вручную через экспорт. */
 (() => {
   'use strict';
   const DB_KEY = 'lordOfTheWoods.manager.v1';
@@ -48,7 +48,7 @@
   ];
 
   const defaultDB = () => ({version:2,activeStateId:null,states:[],journal:[],playerName:'',createdAt:new Date().toISOString()});
-  let db = loadDB();
+  let db = defaultDB();
   let currentView = 'dashboard';
   let worshipFilter = 'Все';
   let pendingAction = null;
@@ -63,19 +63,152 @@
     state.temples ||= {chapel:false,root:false,abode:false};state.unity=Math.max(0,Math.min(100,number(state.unity??50)));state.annualIncome=Math.max(0,number(state.annualIncome));state.civicEffects ||= [];state.resourceRequests ||= [];state.turn=Math.max(0,number(state.turn));delete state.rosterId;const raceAliases={'Нэкомата':'Некомата','Валессийцы':'Валесийцы','Таунгуры':'Тангуры','Та-Рун':'Рун','Барзум-уруки':'Тёмные орки','Сатиры':'Ксатры','Грандины':'Грандийцы','Багбиры':'Бругачи'};state.race=raceAliases[state.race]||state.race||'';state.population??=null;state.feudals??=null;
     return state;
   }
-  function loadDB(){
-    try{const raw=localStorage.getItem(DB_KEY);if(!raw)return defaultDB();const parsed=JSON.parse(raw);if(!parsed||!Array.isArray(parsed.states))return defaultDB();parsed.states=parsed.states.map(normalizeStateRecord);parsed.journal ||= [];parsed.playerName ||= '';delete parsed.armyRegistry;return parsed;}catch(e){return defaultDB();}
+  let sharedAppRevision = 0;
+  let sharedAppReady = false;
+  let sharedAppSaving = false;
+  let sharedAppPending = false;
+  let sharedAppConflict = false;
+  let sharedAppSaveTimer = null;
+  let sharedAppSyncedPayload = null;
+
+  function readLegacyLocalDB(){
+    try{
+      const raw=localStorage.getItem(DB_KEY);
+      if(!raw)return null;
+      const parsed=JSON.parse(raw);
+      if(!parsed||!Array.isArray(parsed.states))return null;
+      parsed.states=parsed.states.map(normalizeStateRecord);
+      parsed.journal ||= [];
+      parsed.playerName ||= '';
+      delete parsed.armyRegistry;
+      return parsed;
+    }catch(error){console.warn('[LOTW] Legacy local backup could not be read:',error);return null;}
+  }
+  function appSharedPayload(){
+    const payload=JSON.parse(JSON.stringify(db));
+    delete payload.playerName;
+    delete payload.activeStateId;
+    return payload;
+  }
+  async function flushSharedApp(){
+    if(!sharedAppReady||sharedAppSaving||!sharedAppPending||sharedAppConflict)return;
+    sharedAppSaving=true;
+    sharedAppPending=false;
+    const payload=appSharedPayload();
+    try{
+      const result=await window.LOTWBackend.saveSharedPart('app',payload,sharedAppRevision);
+      if(result.conflict){
+        sharedAppConflict=true;
+        window.LOTWBackend && window.LOTWBackend.status && console.warn('[LOTW] Shared app revision conflict:',result.revision);
+        $('#saveStatus').textContent='Конфликт изменений. Обновите страницу, чтобы загрузить последнюю версию общего мира.';
+        toast('Другой участник изменил общий мир одновременно. Чтобы не потерять данные, сохранение остановлено. Обновите страницу и повторите действие.','error');
+      }else{
+        sharedAppRevision=result.revision;
+        sharedAppSyncedPayload=payload;
+        if(!sharedAppPending)$('#saveStatus').textContent='Все изменения сохранены в общей базе';
+      }
+    }catch(error){
+      $('#saveStatus').textContent='Ошибка сохранения общей базы: '+(error.message||String(error));
+      toast('Не удалось сохранить общий мир: '+(error.message||String(error)),'error');
+      console.error('[LOTW] Shared app save failed:',error);
+    }finally{
+      sharedAppSaving=false;
+      if(sharedAppPending&&!sharedAppConflict){
+        clearTimeout(sharedAppSaveTimer);
+        sharedAppSaveTimer=setTimeout(flushSharedApp,250);
+      }
+    }
   }
   function saveDB(){
-    try{
-      localStorage.setItem(DB_KEY,JSON.stringify(db));
-      const sync=window.LOTWBackend?.status?.();
-      const suffix=sync==='connected'?' · общая база подключена':sync==='error'?' · общая база недоступна':' · подключаем общую базу…';
-      $('#saveStatus').textContent='Сохранено локально · '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+suffix;
-    }catch(e){$('#saveStatus').textContent='Не удалось сохранить: память браузера заполнена';toast('Не удалось сохранить данные браузера. Экспортируйте резервную копию.','error');}
+    if(!sharedAppReady||sharedAppConflict)return;
+    sharedAppPending=true;
+    $('#saveStatus').textContent='Ожидание сохранения изменений в общей базе…';
+    clearTimeout(sharedAppSaveTimer);
+    sharedAppSaveTimer=setTimeout(flushSharedApp,450);
   }
+  async function savePlayerProfile(){
+    if(!sharedAppReady||!window.LOTWBackend?.saveProfile)return;
+    try{
+      await window.LOTWBackend.saveProfile({player_name:db.playerName,active_state_id:db.activeStateId});
+    }catch(error){
+      toast('Не удалось сохранить профиль игрока: '+(error.message||String(error)),'error');
+    }
+  }
+  async function refreshSharedApp(){
+    if(!sharedAppReady||sharedAppPending||sharedAppSaving||sharedAppConflict)return;
+    try{
+      const remote=await window.LOTWBackend.loadSharedPart('app');
+      if(remote.revision<=sharedAppRevision)return;
+      const profileName=db.playerName,profileState=db.activeStateId;
+      const payload=remote.payload||{};
+      db={...defaultDB(),...payload,states:Array.isArray(payload.states)?payload.states.map(normalizeStateRecord):[],journal:Array.isArray(payload.journal)?payload.journal:[],playerName:profileName,activeStateId:profileState};
+      if(!db.states.some(st=>st.id===db.activeStateId))db.activeStateId=db.states[0]?.id||null;
+      sharedAppRevision=remote.revision;
+      sharedAppSyncedPayload=appSharedPayload();
+      renderAll();
+      $('#saveStatus').textContent='Общий мир обновлён · '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    }catch(error){console.warn('[LOTW] Shared world refresh failed:',error);}
+  }
+  async function bootstrapSharedWorld(){
+    try{
+      const backend=window.LOTWBackend;
+      if(!backend?.isConfigured?.())throw new Error('Не заданы настройки Supabase.');
+      const auth=await backend.initialize();
+      if(auth.error||backend.status()==='error')throw new Error(auth.error||'Не удалось войти в общую базу.');
+      const [appRemote,profile,militaryRemote]=await Promise.all([
+        backend.loadSharedPart('app'),
+        backend.getProfile(),
+        backend.loadSharedPart('military')
+      ]);
+      const payload=appRemote.payload||{};
+      db={...defaultDB(),...payload,states:Array.isArray(payload.states)?payload.states.map(normalizeStateRecord):[],journal:Array.isArray(payload.journal)?payload.journal:[],playerName:profile.player_name||'',activeStateId:profile.active_state_id||payload.activeStateId||null};
+      if(!db.states.some(st=>st.id===db.activeStateId))db.activeStateId=db.states[0]?.id||null;
+      sharedAppRevision=appRemote.revision;
+      sharedAppSyncedPayload=appSharedPayload();
+      sharedAppReady=true;
+      window.LOTW_PLAYER_NAME=db.playerName;
+      if(window.MilitaryAdvisor){
+        window.MilitaryAdvisor.setSharedData(militaryRemote.payload,militaryRemote.revision);
+      }
+
+      // One-time bridge from the previous local-only version. It is offered only
+      // when the cloud world is empty; after migration localStorage is never used
+      // as the active source of game state.
+      const legacy=readLegacyLocalDB();
+      if(db.states.length===0&&legacy?.states?.length&&confirm('В общей базе пока нет государств, но в этом браузере найдена старая локальная летопись. Перенести её и локальную кампанию военного советника в общий мир? Это одноразовый перенос; исходная копия в браузере не удаляется.')){
+        db={...defaultDB(),...legacy,states:legacy.states.map(normalizeStateRecord),journal:legacy.journal||[],playerName:profile.player_name||legacy.playerName||'',activeStateId:legacy.activeStateId||legacy.states[0]?.id||null};
+        sharedAppRevision=appRemote.revision;
+        sharedAppPending=true;
+        await flushSharedApp();
+        await savePlayerProfile();
+        try{
+          const rawMilitary=localStorage.getItem('lordOfTheWoods.militaryAdvisor.v1');
+          const legacyMilitary=rawMilitary?JSON.parse(rawMilitary):null;
+          if(legacyMilitary?.army_a&&window.MilitaryAdvisor){
+            window.MilitaryAdvisor.setSharedData(legacyMilitary,militaryRemote.revision);
+            await window.MilitaryAdvisor.saveSharedNow();
+          }
+        }catch(error){console.warn('[LOTW] Legacy military campaign migration failed:',error);}
+      }
+      if(window.MilitaryAdvisor)window.MilitaryAdvisor.init();
+      renderAll();
+      window.setInterval(refreshSharedApp,12000);
+      if(window.MilitaryAdvisor?.refreshShared)window.setInterval(window.MilitaryAdvisor.refreshShared,12000);
+      $('#saveStatus').textContent='Подключено к общему миру · изменения сохраняются в Supabase';
+    }catch(error){
+      console.error('[LOTW] Shared world bootstrap failed:',error);
+      $('#saveStatus').textContent='Общая база недоступна: '+(error.message||String(error));
+      renderAll();
+      const notice=document.createElement('div');
+      notice.className='notice red';
+      notice.style.margin='12px 0';
+      notice.innerHTML='<b>Общий мир не загружен.</b><br>'+esc(error.message||String(error))+'<br>Проверьте, что в Supabase включён Anonymous Sign-Ins. Данные не будут записываться локально.';
+      $('#view-dashboard')?.prepend(notice);
+    }
+  }
+
   function activeState(){return db.states.find(s=>s.id===db.activeStateId)||db.states[0]||null;}
-  function setActiveState(id){db.activeStateId=id;saveDB();renderAll();}
+  function setActiveState(id){db.activeStateId=id;savePlayerProfile();renderAll();}
   function addJournal(stateId,type,title,detail='',clericDelta=0,favorDelta=0){
     const state=db.states.find(x=>x.id===stateId)||null;const entry={id:uid(),stateId,type,title,detail,clericDelta:number(clericDelta),favorDelta:number(favorDelta),date:new Date().toISOString()};
     db.journal.unshift(entry);if(db.journal.length>500)db.journal.length=500;
@@ -495,7 +628,7 @@
     }
   });
   $('#globalStateSelect').addEventListener('change',e=>setActiveState(e.target.value));
-  $('#playerNameInput').addEventListener('change',e=>{db.playerName=String(e.target.value||'').trim().slice(0,48);window.LOTW_PLAYER_NAME=db.playerName;saveDB();toast(db.playerName?`Имя игрока сохранено: ${db.playerName}`:'Имя игрока очищено.');});
+  $('#playerNameInput').addEventListener('change',e=>{db.playerName=String(e.target.value||'').trim().slice(0,48);window.LOTW_PLAYER_NAME=db.playerName;savePlayerProfile();toast(db.playerName?`Имя игрока сохранено: ${db.playerName}`:'Имя игрока очищено.');});
   document.addEventListener('submit',async e=>{
     if(e.target.id==='adminLoginForm'){e.preventDefault();const f=e.target,fd=new FormData(f),err=$('#adminLoginError');try{await window.LOTWBackend.loginAdmin(fd.get('email'),fd.get('password'));renderAll();toast('Режим администратора открыт.');}catch(error){if(err)err.textContent=error.message||String(error);}}
     if(e.target.matches('[data-admin-reply-form]')){e.preventDefault();const f=e.target,fd=new FormData(f);try{await window.LOTWBackend.replyToActivity(f.dataset.id,fd.get('reply'),fd.get('status'));toast('Ответ отправлен игроку.');await loadAdminInbox();}catch(error){toast(error.message||String(error),'error');}}
@@ -514,7 +647,7 @@
 
   if(typeof navigator!=='undefined'&&'serviceWorker' in navigator&&typeof location!=='undefined'&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 
-  // Initial render; the application starts with an empty register rather than fabricated example data.
-  if(window.MilitaryAdvisor)window.MilitaryAdvisor.init();
-  renderAll();
+  // The cloud is the sole active source of game state. localStorage is read only
+  // by the one-time migration prompt and is never written by normal gameplay.
+  bootstrapSharedWorld();
 })();
