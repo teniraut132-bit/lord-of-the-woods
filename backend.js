@@ -9,7 +9,19 @@
   let adminUser = null;
   let adminRole = null;
   let status = 'not-configured';
+  let lastError = '';
   let initPromise = null;
+  function setStatus(next, error = '') {
+    status = next;
+    lastError = error ? message(error) : '';
+    const node = document.getElementById('saveStatus');
+    if (node) {
+      if (next === 'connected') node.textContent = 'Общая база Supabase подключена';
+      else if (next === 'error') node.textContent = 'Локальные данные сохранены · синхронизация недоступна: ' + lastError;
+      else if (next === 'connecting') node.textContent = 'Локальные данные сохранены · подключаем общую базу…';
+    }
+    window.dispatchEvent(new CustomEvent('lotw-backend-status', { detail: { status, error: lastError } }));
+  }
   const configured = () => !!(cfg.url && cfg.anonKey && window.supabase?.createClient);
   const message = e => String(e?.message || e || 'Неизвестная ошибка');
 
@@ -25,15 +37,24 @@
     const { data, error } = await visitorClient.auth.getUser();
     if (error) throw error;
     visitorUser = data.user;
+    setStatus('connected');
     return visitorUser;
   }
 
   async function initialize() {
-    if (!configured()) { status = 'not-configured'; return { configured: false, status }; }
-    if (!initPromise) initPromise = (async () => {
-      try { await ensureVisitor(); status = 'connected'; return { configured: true, status, visitorId: visitorUser?.id }; }
-      catch (e) { status = 'error'; console.warn('[LOTW] Backend initialization:', message(e)); return { configured: true, status, error: message(e) }; }
-    })();
+    if (!configured()) { setStatus('not-configured'); return { configured: false, status }; }
+    if (!initPromise) {
+      setStatus('connecting');
+      initPromise = (async () => {
+        try { await ensureVisitor(); return { configured: true, status, visitorId: visitorUser?.id }; }
+        catch (e) {
+          setStatus('error', e);
+          initPromise = null;
+          console.warn('[LOTW] Backend initialization:', message(e));
+          return { configured: true, status, error: message(e) };
+        }
+      })();
+    }
     return initPromise;
   }
 
@@ -56,7 +77,7 @@
       const { error } = await visitorClient.from('lotw_activity').insert(row);
       if (error) throw error;
       return { ok: true };
-    } catch (e) { console.warn('[LOTW] Activity sync failed:', message(e)); return { ok: false, error: message(e) }; }
+    } catch (e) { setStatus('error', e); console.warn('[LOTW] Activity sync failed:', message(e)); return { ok: false, error: message(e) }; }
   }
 
   async function myResponses() {
@@ -69,7 +90,7 @@
         .order('replied_at', { ascending: false }).limit(50);
       if (error) throw error;
       return { configured: true, rows: data || [] };
-    } catch (e) { return { configured: true, rows: [], error: message(e) }; }
+    } catch (e) { setStatus('error', e); return { configured: true, rows: [], error: message(e) }; }
   }
 
   async function loginAdmin(email, password) {
