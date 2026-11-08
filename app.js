@@ -67,7 +67,12 @@
     try{const raw=localStorage.getItem(DB_KEY);if(!raw)return defaultDB();const parsed=JSON.parse(raw);if(!parsed||!Array.isArray(parsed.states))return defaultDB();parsed.states=parsed.states.map(normalizeStateRecord);parsed.journal ||= [];parsed.playerName ||= '';delete parsed.armyRegistry;return parsed;}catch(e){return defaultDB();}
   }
   function saveDB(){
-    try{localStorage.setItem(DB_KEY,JSON.stringify(db));$('#saveStatus').textContent='Сохранено локально · '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});}catch(e){$('#saveStatus').textContent='Не удалось сохранить: память браузера заполнена';toast('Не удалось сохранить данные браузера. Экспортируйте резервную копию.','error');}
+    try{
+      localStorage.setItem(DB_KEY,JSON.stringify(db));
+      const sync=window.LOTWBackend?.status?.();
+      const suffix=sync==='connected'?' · общая база подключена':sync==='error'?' · общая база недоступна':' · подключаем общую базу…';
+      $('#saveStatus').textContent='Сохранено локально · '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+suffix;
+    }catch(e){$('#saveStatus').textContent='Не удалось сохранить: память браузера заполнена';toast('Не удалось сохранить данные браузера. Экспортируйте резервную копию.','error');}
   }
   function activeState(){return db.states.find(s=>s.id===db.activeStateId)||db.states[0]||null;}
   function setActiveState(id){db.activeStateId=id;saveDB();renderAll();}
