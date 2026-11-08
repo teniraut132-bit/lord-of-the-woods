@@ -183,24 +183,55 @@
       }
       updateLocalBackupCache();
 
-      // One-time bridge from the previous local-only version. It is offered only
-      // when the cloud world is empty; after migration localStorage is never used
-      // as the active source of game state.
-      const legacy=readLegacyLocalDB();
-      if(db.states.length===0&&legacy?.states?.length&&confirm('В общей базе пока нет государств, но в этом браузере найдена старая локальная летопись. Перенести её и локальную кампанию военного советника в общий мир? Это одноразовый перенос; исходная копия в браузере не удаляется.')){
-        db={...defaultDB(),...legacy,states:legacy.states.map(normalizeStateRecord),journal:legacy.journal||[],playerName:profile.player_name||legacy.playerName||'',activeStateId:legacy.activeStateId||legacy.states[0]?.id||null};
-        sharedAppRevision=appRemote.revision;
-        sharedAppPending=true;
-        await flushSharedApp();
-        await savePlayerProfile();
+      // One-time import bridge for browsers that used the old local-only build.
+      // It merges previously separate state lists into the shared world; it never
+      // replaces cloud states that already exist.
+      const legacyMarker='lordOfTheWoods.legacyMigration.v1';
+      const legacyAlreadyHandled=localStorage.getItem(legacyMarker)==='done';
+      if(!legacyAlreadyHandled){
+        const legacy=readLegacyLocalDB();
+        if(legacy?.states?.length){
+          const existingIds=new Set(db.states.map(st=>String(st.id)));
+          const existingNames=new Set(db.states.map(st=>String(st.name||'').trim().toLocaleLowerCase('ru')));
+          const additions=legacy.states.map(normalizeStateRecord).filter(st=>{
+            const id=String(st.id||'');
+            const name=String(st.name||'').trim().toLocaleLowerCase('ru');
+            return id&&!existingIds.has(id)&&name&&!existingNames.has(name);
+          });
+          const knownStateIds=new Set([...db.states,...additions].map(st=>String(st.id)));
+          const journalById=new Map((db.journal||[]).map(entry=>[String(entry.id),entry]));
+          const journalAdditions=(legacy.journal||[]).filter(entry=>
+            entry?.id&&!journalById.has(String(entry.id))&&(!entry.stateId||knownStateIds.has(String(entry.stateId)))
+          );
+          if((additions.length||journalAdditions.length)&&confirm(
+            `Найдена отдельная старая локальная летопись: государств для добавления — ${additions.length}, записей журнала — ${journalAdditions.length}. Добавить их в общий мир? Существующие облачные государства не будут заменены.`
+          )){
+            db.states=[...db.states,...additions];
+            db.journal=[...db.journal,...journalAdditions].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,500);
+            if(!db.playerName&&legacy.playerName)db.playerName=String(legacy.playerName).slice(0,48);
+            if(!db.activeStateId&&legacy.activeStateId&&knownStateIds.has(String(legacy.activeStateId)))db.activeStateId=legacy.activeStateId;
+            sharedAppPending=true;
+            await flushSharedApp();
+            await savePlayerProfile();
+            updateLocalBackupCache();
+          }
+        }
+
         try{
           const rawMilitary=localStorage.getItem('lordOfTheWoods.militaryAdvisor.v1');
           const legacyMilitary=rawMilitary?JSON.parse(rawMilitary):null;
-          if(legacyMilitary?.army_a&&window.MilitaryAdvisor){
-            window.MilitaryAdvisor.setSharedData(legacyMilitary,militaryRemote.revision);
-            await window.MilitaryAdvisor.saveSharedNow();
+          const cloudMilitary=militaryRemote.payload||{};
+          const cloudMilitaryEmpty=!(cloudMilitary.army_a?.units?.length||cloudMilitary.army_b?.units?.length||cloudMilitary.history?.length||cloudMilitary.last_report);
+          const localMilitaryHasData=!!(legacyMilitary?.army_a||legacyMilitary?.army_b)&&!!(
+            legacyMilitary.army_a?.units?.length||legacyMilitary.army_b?.units?.length||legacyMilitary.history?.length||legacyMilitary.last_report
+          );
+          if(cloudMilitaryEmpty&&localMilitaryHasData&&confirm('В этом браузере найдена старая локальная военная кампания, а общая кампания пока пуста. Перенести армии и историю боёв в общий мир?')){
+            window.MilitaryAdvisor?.setSharedData(legacyMilitary,militaryRemote.revision);
+            await window.MilitaryAdvisor?.saveSharedNow();
+            updateLocalBackupCache();
           }
         }catch(error){console.warn('[LOTW] Legacy military campaign migration failed:',error);}
+        try{localStorage.setItem(legacyMarker,'done');}catch(error){console.warn('[LOTW] Could not set legacy migration marker:',error);}
       }
       if(window.MilitaryAdvisor)window.MilitaryAdvisor.init();
       renderAll();
